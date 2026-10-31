@@ -4,8 +4,8 @@ Dashboard Siaga Kalsel yang sama dengan versi Worker, tapi disajikan
 sepenuhnya statis lewat GitHub Pages:
 
 - `index.html`, `app.js`, `style.css` — frontend (Leaflet + data).
-- `summary.json` — data gabungan, diperbarui tiap 30 menit oleh
-  GitHub Actions (`.github/workflows/update-summary.yml`).
+- `summary.json` — data gabungan, diperbarui tiap 30 menit oleh cron
+  (skrip `update-via-api.py` + `fetch-summary.mjs` di workspace).
 - `fetch-summary.mjs` — skrip pembangun `summary.json` (port logika
   Worker: ATCS Banjarmasin, FIRMS, Open-Meteo, BMKG, sheet TMA BWS
   Kalimantan III, RainViewer).
@@ -20,5 +20,7 @@ Perbedaan dari versi Worker:
 - Semua teks dari sumber luar di-escape sebelum dirender (perbaikan
   keamanan vs versi Worker).
 
-Jalankan lokal: `node fetch-summary.mjs summary.json`, lalu sajikan
-folder ini dengan server statis apa pun.
+Catatan: file `.github/workflows/update-summary.yml` tersedia di
+workspace sebagai opsi otomasi murni GitHub Actions, tapi tidak bisa
+dibuat lewat API karena token tidak punya scope `workflow` — tambahkan
+manual lewat web UI bila ingin memakainya.
