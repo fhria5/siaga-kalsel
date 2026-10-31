@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Siaga Kalsel</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <h1>Siaga Kalsel</h1>
+    <p class="subtitle">CCTV Kalimantan · Titik Panas, Cuaca, Gempa, Banjir Kalsel</p>
+  </div>
+  <div class="live-pill" aria-label="Status data langsung"><span class="dot" aria-hidden="true"></span> LIVE</div>
+</header>
+<main>
+  <p id="meta" class="meta" role="status">Memuat…</p>
+  <div id="alert-banner" hidden role="alert"></div>
+  <button type="button" class="chip chip-action" id="copy-summary">Salin ringkasan siaga</button>
+  <p id="summary-status" class="meta" hidden></p>
+  <section id="cards" class="stats" aria-label="Ringkasan siaga"></section>
+
+  <section class="panel map-panel" aria-label="Peta siaga">
+    <div class="panel-head">
+      <h2>Peta Siaga</h2>
+      <div class="controls" role="group" aria-label="Filter peta">
+        <button type="button" class="chip active" id="show-cctv" aria-pressed="true">CCTV</button>
+        <button type="button" class="chip active" id="show-hot" aria-pressed="true">Titik Panas</button>
+        <button type="button" class="chip active" id="f-high" aria-pressed="true">Tinggi</button>
+        <button type="button" class="chip active" id="f-nominal" aria-pressed="true">Nominal</button>
+        <button type="button" class="chip active" id="f-low" aria-pressed="true">Rendah</button>
+        <button type="button" class="chip chip-action" id="refresh">Muat Ulang</button>
+        <button type="button" class="chip chip-action" id="nearest">CCTV Terdekat</button>
+        <button type="button" class="chip active" id="wx-layer" aria-pressed="true">Cuaca di peta: Aktif</button>
+        <button type="button" class="chip chip-action" id="share-view">Bagikan tampilan ini</button>
+      </div>
+      <p id="share-status" class="meta" hidden></p>
+      <div class="search-row">
+        <input type="search" id="cam-search" placeholder="Cari kamera, mis. Antasari…" aria-label="Cari kamera berdasarkan nama" autocomplete="off">
+        <ul id="cam-search-results" class="list" hidden></ul>
+      </div>
+    </div>
+    <div id="map-wrap">
+      <div id="map" role="application" aria-label="Peta CCTV dan titik panas"></div>
+      <div id="rain-fx" hidden></div>
+    </div>
+    <p class="legend"><span class="swatch sw-high"></span> Tinggi <span class="swatch sw-nominal"></span> Nominal <span class="swatch sw-low"></span> Rendah <span class="swatch sw-cctv"></span> CCTV · Zoom pakai +/− atau cubit.</p>
+    <p id="wx-note" class="meta"></p>
+    <div id="nearest-box" hidden>
+      <p id="nearest-status" class="meta"></p>
+      <ul id="nearest-list" class="list"></ul>
+      <p id="route-status" class="meta" hidden></p>
+      <button type="button" class="chip chip-action" id="clear-route" hidden>Hapus rute</button>
+      <button type="button" class="chip chip-action" id="pick-loc">Pilih lokasi manual di peta</button>
+      <p class="note">Lokasi hanya dipakai di perangkat kamu untuk menghitung jarak, tidak dikirim ke server. Hanya kamera video (Banjarmasin + Pontianak); pin portal Banjarbaru/Banjar tidak ikut karena koordinatnya titik pusat kota, bukan titik kamera. Rute memakai OSRM (data OpenStreetMap), perkiraan berkendara.</p>
+    </div>
+    <div id="fav-box" hidden>
+      <p class="meta"><b>Kamera favorit</b> · tersimpan di perangkat ini saja, tidak dikirim ke server.</p>
+      <ul id="fav-list" class="list"></ul>
+    </div>
+  </section>
+
+  <nav class="tabs" role="tablist" aria-label="Detail siaga">
+    <button type="button" class="tab active" data-tab="cuaca" role="tab" aria-selected="true" aria-label="Cuaca dan Udara">Cuaca</button>
+    <button type="button" class="tab" data-tab="hotspot" role="tab" aria-selected="false">Titik Panas</button>
+    <button type="button" class="tab" data-tab="gempa" role="tab" aria-selected="false">Gempa</button>
+    <button type="button" class="tab" data-tab="banjir" role="tab" aria-selected="false">Banjir</button>
+  </nav>
+
+  <div id="panel-cuaca" class="tabpanel active" role="tabpanel">
+    <h2>Cuaca 5 Kota Kalsel</h2>
+    <div id="cities" class="city-grid"></div>
+    <h2>Kualitas Udara Banjarmasin</h2>
+    <div id="aq">Memuat…</div>
+    <h2>Kualitas Udara Kota Lain</h2>
+    <div id="aq-cities" class="city-grid"></div>
+    <p class="note">Data udara Open-Meteo adalah estimasi model, bukan pengukuran stasiun resmi.</p>
+    <h2>Cuaca Banjarmasin 12 Jam ke Depan</h2>
+    <div id="weather" class="hour-scroll"></div>
+    <h2>Prakiraan 7 Hari</h2>
+    <div id="forecast-chips" class="chip-row"></div>
+    <div id="forecast-list"></div>
+    <div id="forecast-chart"></div>
+    <p class="note">Prakiraan model Open-Meteo, bukan BMKG. Peluang hujan = peluang maksimum hari itu.</p>
+  </div>
+
+  <div id="panel-hotspot" class="tabpanel" role="tabpanel">
+    <h2>Titik Panas Kepercayaan Tinggi</h2>
+    <button id="watch-btn" class="chip">Mulai pantau titik panas</button>
+    <p id="watch-status" class="note" hidden></p>
+    <div id="watch-alert" hidden role="alert"></div>
+    <ul id="hotspots" class="list"></ul>
+    <p class="note">Nama daerah dari OpenStreetMap (Nominatim). Titik di tengah hutan biasanya hanya sampai level kabupaten, karena tidak ada nama desa di peta untuk titik itu.</p>
+  </div>
+
+  <div id="panel-gempa" class="tabpanel" role="tabpanel">
+    <h2>Gempa Terdekat dari Banjarmasin</h2>
+    <ul id="quakes" class="list"></ul>
+    <h2>Gempa Terbaru Nasional</h2>
+    <p id="quake">Memuat…</p>
+    <button id="watch-quake-btn" class="chip">Mulai pantau gempa</button>
+    <p id="watch-quake-status" class="note" hidden></p>
+    <div id="watch-quake-alert" hidden role="alert"></div>
+    <p class="note">Sumber: CCTV Banjarmasin (ATCS Dishub, HLS) + Pontianak (YouTube Dishub, ID dari daftar Nov 2025, live hari ini tidak terverifikasi; koordinat level jalan) + Banjarbaru dan Banjar sebagai pin ungu yang menaut ke portal resmi (videonya tidak di-embed karena URL stream tidak tersedia) · titik panas NASA FIRMS 24 jam (kotak Kalsel, bukan batas provinsi persis) · cuaca Open-Meteo · gempa BMKG · TMA dari Tabel Rekap BWS Kalimantan III (sheet publik). Titik panas itu deteksi satelit, bukan kebakaran yang sudah dipastikan. Darurat: 112, pemadam 113.</p>
+  </div>
+
+  <div id="panel-banjir" class="tabpanel" role="tabpanel">
+    <h2>Pasang Muara Barito (BMKG)</h2>
+    <div id="tide">Memuat…</div>
+    <p class="note">Pasang laut di muara, bukan tinggi sungai — proksi rob untuk Banjarmasin, bukan gauge sungai. Prakiraan BMKG Pelabuhan Muara Sungai Barito.</p>
+    <h2>Tinggi Muka Air (TMA)</h2>
+    <ul id="flood" class="list"></ul>
+    <p class="note">Sumber: Tabel Rekap TMA BWS Kalimantan III (Google Sheet publik, dibuka tanpa login). Pos tidak punya koordinat di sheet, jadi tidak tampil di peta. Tanggal pembacaan berbeda per pos; angka hanya berlaku pada tanggalnya.</p>
+  </div>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
