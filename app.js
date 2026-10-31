@@ -38,31 +38,43 @@ map.on("popupopen", (e) => {
     paint();
     favBtn.onclick = () => { toggleFav(f); paint(); renderFavs(); };
   }
-  // Video Banjarmasin lewat proxy Worker cctv-banjarmasin (bukan
+  // Video Banjarmasin lewat proxy Instabox box fhriproject (bukan
   // langsung ke ATCS — fetch browser langsung terbukti diblokir
   // 31 Okt 2026 16:03 WITA). hls.js DIDAHULUKAN: canPlayType di
   // Chrome Android mengembalikan "maybe" tapi playback native
   // gagal diam-diam untuk stream fMP4 ini (pelajaran 30 Okt 2026).
+  // Fallback: bila proxy Instabox gagal fatal (box tidur/berhenti),
+  // sekali coba pindah ke proxy Worker Cloudflare — video tetap
+  // jalan dengan kuota, daripada mati total.
   if (src && src._video) {
     const vEl = e.popup.getElement().querySelector(".cam-video");
     const errEl = e.popup.getElement().querySelector(".video-err");
     if (vEl) {
-      const url = VIDEO_PROXY + "/up/stream/" + src._video.code + "/index.m3u8";
-      if (window.Hls && Hls.isSupported()) {
-        curHls = new Hls();
-        curHls.loadSource(url);
-        curHls.attachMedia(vEl);
-        curHls.on(Hls.Events.MANIFEST_PARSED, () => vEl.play().catch(() => {}));
-        curHls.on(Hls.Events.ERROR, (ev, d) => { if (d.fatal && errEl) errEl.textContent = "Video gagal dimuat. Coba lagi atau buka di portal ATCS."; });
-      } else if (vEl.canPlayType("application/vnd.apple.mpegurl")) {
-        vEl.src = url;
-        vEl.play().catch(() => {});
-      } else if (errEl) errEl.textContent = "Browser ini tidak bisa memutar video ini.";
+      let triedFallback = false;
+      const start = (base) => {
+        const url = base + "/up/stream/" + src._video.code + "/index.m3u8";
+        if (window.Hls && Hls.isSupported()) {
+          curHls = new Hls();
+          curHls.loadSource(url);
+          curHls.attachMedia(vEl);
+          curHls.on(Hls.Events.MANIFEST_PARSED, () => vEl.play().catch(() => {}));
+          curHls.on(Hls.Events.ERROR, (ev, d) => {
+            if (!d.fatal) return;
+            if (!triedFallback) { triedFallback = true; curHls.destroy(); start(VIDEO_FALLBACK); }
+            else if (errEl) errEl.textContent = "Video gagal dimuat. Coba lagi atau buka di portal ATCS.";
+          });
+        } else if (vEl.canPlayType("application/vnd.apple.mpegurl")) {
+          vEl.src = url;
+          vEl.play().catch(() => {});
+        } else if (errEl) errEl.textContent = "Browser ini tidak bisa memutar video ini.";
+      };
+      start(VIDEO_PROXY);
     }
   }
 });
 let curHls = null;
-const VIDEO_PROXY = "https://cctv-banjarmasin.fahriannor07.workers.dev";
+const VIDEO_PROXY = "https://8901-agqzcdkatrdxqrknze2w4pwxfq.instabox.tech";
+const VIDEO_FALLBACK = "https://cctv-banjarmasin.fahriannor07.workers.dev";
 map.on("popupclose", () => { if (curHls) { curHls.destroy(); curHls = null; } });
   // Video Banjarmasin di-embed lewat proxy Worker cctv-banjarmasin
   // (hibrida 31 Okt 2026: data tetap statis tanpa kuota, hanya
@@ -83,7 +95,7 @@ function render() {
         const m = L.marker([c.lat, c.lng], { icon: L.divIcon({ html: '<span class="cctv-dot"></span>', className: "cctv-pin", iconSize: [28, 28] }) });
         m._fav = { name: c.name, lat: c.lat, lng: c.lng, city: "Banjarmasin" };
         m._video = { code: c.code };
-        m.bindPopup(`<b>${esc(c.name)} (Banjarmasin)</b>${c.announcement ? `<br><small class="cam-ann">Status: ${esc(c.announcement)}</small>` : ""}<br><video class="cam-video" controls autoplay muted playsinline poster="${esc(c.thumbUrl)}" style="width:280px;max-width:80vw;border-radius:10px;background:#000"></video><div class="video-err" style="color:#FCA5A5;font-size:12px"></div><a href="${esc(c.playUrl)}" target="_blank" rel="noopener">Buka video di portal ATCS ↗</a><br><small>Video lewat proxy (kuota Cloudflare terpakai saat menonton; browsing dashboard tetap tanpa kuota).</small><br><button type="button" class="chip fav-btn">☆ Simpan ke favorit</button>`).addTo(cctvLayer);
+        m.bindPopup(`<b>${esc(c.name)} (Banjarmasin)</b>${c.announcement ? `<br><small class="cam-ann">Status: ${esc(c.announcement)}</small>` : ""}<br><video class="cam-video" controls autoplay muted playsinline poster="${esc(c.thumbUrl)}" style="width:280px;max-width:80vw;border-radius:10px;background:#000"></video><div class="video-err" style="color:#FCA5A5;font-size:12px"></div><a href="${esc(c.playUrl)}" target="_blank" rel="noopener">Buka video di portal ATCS ↗</a><br><small>Video lewat proxy Instabox (tanpa kuota Cloudflare; kalau box tidak menjawab, otomatis pindah ke proxy Cloudflare).</small><br><button type="button" class="chip fav-btn">☆ Simpan ke favorit</button>`).addTo(cctvLayer);
       }
     }
   }
